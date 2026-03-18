@@ -28,8 +28,7 @@ export default function HomePage() {
             Realtime conversations with calm, modern energy.
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600 dark:text-slate-300 md:text-lg">
-            Pulse Chat connects to your Node.js and Socket.io backend for live messages,
-            presence updates, typing states, and smooth dashboard messaging.
+            Powered by Node.js and Socket.io, this platform delivers fast, reliable real-time messaging with live typing indicators,presence tracking, and a fluid chat experience.
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
             <Link
