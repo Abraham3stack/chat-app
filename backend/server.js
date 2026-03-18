@@ -16,12 +16,23 @@ const allowedOrigins = (process.env.CLIENT_URL || "")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const isTrustedPattern = (origin) => {
+  if (!origin) {
+    return true;
+  }
+
+  return (
+    /^http:\/\/localhost(?::\d+)?$/i.test(origin) ||
+    /^https:\/\/.*\.vercel\.app$/i.test(origin)
+  );
+};
+
 const isAllowedOrigin = (origin) => {
   if (!origin) {
     return true;
   }
 
-  return allowedOrigins.includes(origin);
+  return allowedOrigins.includes(origin) || isTrustedPattern(origin);
 };
 
 const corsOriginHandler = (origin, callback) => {
