@@ -11,6 +11,7 @@ import api from "../../services/api";
 import { connectSocket, disconnectSocket, getSocket } from "../../services/socket";
 
 const getParticipantId = (value) => (typeof value === "string" ? value : value?._id);
+const getRoomId = (userA, userB) => [userA, userB].sort().join(":");
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -36,6 +37,7 @@ export default function DashboardPage() {
   const lastSearchRef = useRef("");
   const selectedUserRef = useRef(null);
   const pendingOfflineRef = useRef(new Map());
+  const activeRoomRef = useRef("");
   const selectedUserId = selectedUser?._id || null;
   const activeSelectedUser = useMemo(() => {
     if (!selectedUserId) {
@@ -48,6 +50,15 @@ export default function DashboardPage() {
   useEffect(() => {
     selectedUserRef.current = activeSelectedUser;
   }, [activeSelectedUser]);
+
+  useEffect(() => {
+    if (!user?._id || !selectedUserId) {
+      activeRoomRef.current = "";
+      return;
+    }
+
+    activeRoomRef.current = getRoomId(user._id, selectedUserId);
+  }, [selectedUserId, user?._id]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -134,13 +145,10 @@ export default function DashboardPage() {
       const chatPartnerId = senderId === user._id ? receiverId : senderId;
       const activeChat = selectedUserRef.current;
 
-      setLastMessages((prev) => ({ ...prev, [chatPartnerId]: message }));
+      console.log("MESSAGE RECEIVED:", message);
 
-      if (
-        activeChat &&
-        ((senderId === activeChat._id && receiverId === user._id) ||
-          (senderId === user._id && receiverId === activeChat._id))
-      ) {
+      setLastMessages((prev) => ({ ...prev, [chatPartnerId]: message }));
+      if (activeChat) {
         setMessages((prev) => {
           const exists = prev.some((item) => item._id && item._id === message._id);
           return exists ? prev : [...prev, message];
@@ -282,9 +290,27 @@ export default function DashboardPage() {
       currentSocket?.off("typing", handleTyping);
       currentSocket?.off("stop_typing", handleStopTyping);
       currentSocket?.off("messages_read", handleMessagesRead);
-      disconnectSocket();
     };
   }, [token, user, updateCurrentUser]);
+
+  useEffect(() => {
+    if (!token || !user?._id || !selectedUserId) {
+      return;
+    }
+
+    const socket = getSocket() || connectSocket();
+    socket.emit("join_chat", {
+      userId: user._id,
+      otherUserId: selectedUserId
+    });
+
+    return () => {
+      socket.emit("leave_chat", {
+        userId: user._id,
+        otherUserId: selectedUserId
+      });
+    };
+  }, [selectedUserId, token, user?._id]);
 
   useEffect(() => {
     if (!token || !selectedUserId) {
@@ -404,6 +430,24 @@ export default function DashboardPage() {
     }
 
     try {
+      const socket = getSocket();
+      const roomId = getRoomId(user._id, activeSelectedUser._id);
+
+      if (socket?.connected) {
+        socket.emit("send_message", {
+          senderId: user._id,
+          receiverId: activeSelectedUser._id,
+          content,
+          roomId
+        });
+        socket.emit("stop_typing", {
+          senderId: user._id,
+          receiverId: activeSelectedUser._id,
+          roomId
+        });
+        return;
+      }
+
       const { data } = await api.post("/messages/send", {
         receiverId: activeSelectedUser._id,
         content
@@ -414,12 +458,6 @@ export default function DashboardPage() {
         return exists ? prev : [...prev, data];
       });
       setLastMessages((prev) => ({ ...prev, [activeSelectedUser._id]: data }));
-
-      const socket = getSocket();
-      socket?.emit("stop_typing", {
-        senderId: user._id,
-        receiverId: activeSelectedUser._id
-      });
     } catch (error) {
       setChatError(error.response?.data?.message || "Unable to send message");
     }
@@ -431,9 +469,11 @@ export default function DashboardPage() {
     }
 
     const socket = getSocket();
+    const roomId = getRoomId(user._id, activeSelectedUser._id);
     socket?.emit(isTyping ? "typing" : "stop_typing", {
       senderId: user._id,
-      receiverId: activeSelectedUser._id
+      receiverId: activeSelectedUser._id,
+      roomId
     });
   };
 

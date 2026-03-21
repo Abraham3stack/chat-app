@@ -14,10 +14,27 @@ const normalizeUrl = (value) => {
 };
 
 export const connectSocket = () => {
+  if (socket && socket.connected) {
+    return socket;
+  }
+
   if (!socket) {
     socket = io(normalizeUrl(process.env.NEXT_PUBLIC_SOCKET_URL), {
-      transports: ["websocket"],
-      autoConnect: true
+      transports: ["websocket", "polling"],
+      withCredentials: true,
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+    socket.off("connect");
+    socket.off("connect_error");
+    socket.on("connect", () => {
+      console.log("✅ Socket connected:", socket.id);
+    });
+
+    socket.on("connect_error", (err) => {
+      console.log("❌ Socket error:", err.message);
     });
   }
 
@@ -27,8 +44,9 @@ export const connectSocket = () => {
 export const getSocket = () => socket;
 
 export const disconnectSocket = () => {
-  if (socket) {
+  if (socket && socket.connected) {
     socket.disconnect();
-    socket = null;
   }
+  // Do NOT nullify the socket instance to avoid re-creating multiple connections
+  // socket = null;
 };

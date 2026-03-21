@@ -3,6 +3,7 @@ import User from "../models/User.js";
 
 const onlineUsers = new Map();
 const socketUsers = new Map();
+const getRoomId = (userA, userB) => [userA, userB].sort().join(":");
 
 const addUserSocket = (userId, socketId) => {
   const activeSockets = onlineUsers.get(userId) || new Set();
@@ -37,6 +38,8 @@ const removeUserSocket = (socketId) => {
 
 const initializeChatSocket = (io) => {
   io.on("connection", (socket) => {
+    console.log(`Socket connected: ${socket.id}`);
+
     socket.on("user_online", async (userId) => {
       if (!userId) {
         return;
@@ -66,6 +69,22 @@ const initializeChatSocket = (io) => {
       }
     });
 
+    socket.on("join_chat", ({ userId, otherUserId } = {}) => {
+      if (!userId || !otherUserId) {
+        return;
+      }
+
+      socket.join(getRoomId(userId, otherUserId));
+    });
+
+    socket.on("leave_chat", ({ userId, otherUserId } = {}) => {
+      if (!userId || !otherUserId) {
+        return;
+      }
+
+      socket.leave(getRoomId(userId, otherUserId));
+    });
+
     socket.on("send_message", async (payload) => {
       const { senderId, receiverId, content } = payload || {};
 
@@ -90,6 +109,8 @@ const initializeChatSocket = (io) => {
           { path: "receiver", select: "username email status lastSeen" }
         ]);
 
+        const roomId = getRoomId(senderId, receiverId);
+        io.to(roomId).emit("receive_message", populatedMessage);
         io.to(receiverId).emit("receive_message", populatedMessage);
         io.to(senderId).emit("receive_message", populatedMessage);
       } catch (error) {
@@ -97,20 +118,26 @@ const initializeChatSocket = (io) => {
       }
     });
 
-    socket.on("typing", ({ senderId, receiverId }) => {
+    socket.on("typing", ({ senderId, receiverId, roomId }) => {
       if (!senderId || !receiverId) {
         return;
       }
 
-      io.to(receiverId).emit("typing", { senderId, receiverId });
+      const targetRoomId = roomId || getRoomId(senderId, receiverId);
+      socket.to(targetRoomId).emit("typing", { senderId, receiverId, roomId: targetRoomId });
     });
 
-    socket.on("stop_typing", ({ senderId, receiverId }) => {
+    socket.on("stop_typing", ({ senderId, receiverId, roomId }) => {
       if (!senderId || !receiverId) {
         return;
       }
 
-      io.to(receiverId).emit("stop_typing", { senderId, receiverId });
+      const targetRoomId = roomId || getRoomId(senderId, receiverId);
+      socket.to(targetRoomId).emit("stop_typing", {
+        senderId,
+        receiverId,
+        roomId: targetRoomId
+      });
     });
 
     socket.on("messages_read", ({ senderId, receiverId }) => {
@@ -122,6 +149,7 @@ const initializeChatSocket = (io) => {
     });
 
     socket.on("disconnect", async () => {
+      console.log(`Socket disconnected: ${socket.id}`);
       const userId = removeUserSocket(socket.id);
 
       if (!userId) {
