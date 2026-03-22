@@ -22,7 +22,7 @@ export default function HomePage() {
       <section className="grid w-full max-w-7xl gap-7 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <div className="glass-panel rounded-[2rem] p-10">
           <p className="mb-3 text-xs uppercase tracking-[0.22em] text-emerald-400">
-            Next.js Chat Experience
+            Real-time Chat Experience
           </p>
           <h1 className="max-w-4xl text-5xl font-semibold leading-[0.9] tracking-[-0.06em] text-slate-900 dark:text-white md:text-7xl">
             Realtime conversations with calm, modern energy.
